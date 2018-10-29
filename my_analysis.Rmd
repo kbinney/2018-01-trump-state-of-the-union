@@ -6,14 +6,15 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
 ```
 
-```{r}
+```{r, message = FALSE, warning = FALSE}
 library(tidyverse)
 library(ggplot2)
 library(tidytext)
-
+library(knitr)
+library(lubridate)
 ```
 
 ```{r load_data, results="hide", warning=FALSE, message=FALSE}
@@ -27,15 +28,95 @@ sou <- sou %>%
 
 ```{r tokenize}
 
-sou_words <- sou %>% 
+sou_sentiment <- sou %>% 
   unnest_tokens(word, text) %>% 
+  group_by(date) %>% 
+  mutate(speech_total = n()) %>% 
+  ungroup() %>% 
   inner_join(get_sentiments("bing"), by = "word")
 
-sou_words %>% 
-  group_by(date) %>% 
-  mutate(total_words = n()) %>% 
-  ungroup() %>% 
-  year = year(date)
+sou_sentiment %>% 
+  count(president, party, date, sentiment, speech_total) %>% 
+  mutate(percent = n / speech_total) %>% 
+  filter(sentiment == "negative") %>% 
+  arrange(desc(percent)) %>% 
+  head(n = 10) %>% 
+  kable()
+
+sou_sentiment %>% 
+  count(president, party, date, sentiment, speech_total) %>% 
+  mutate(percent = n / speech_total * 100) %>% 
+  filter(sentiment == "positive") %>% 
+  arrange(desc(percent)) %>% 
+  head(n = 10) %>% 
+  kable(title = "most positive by percent")
+
+sou_sentiment %>% 
+  count(president, party, date, sentiment, speech_total) %>% 
+  filter(sentiment == "positive") %>% 
+  arrange(desc(n)) %>% 
+  head(n = 10) %>% 
+  kable(title = "most positive by word count")
+
+
+sou_sentiment %>% 
+  group_by(president, party, date) %>% 
+  count(sentiment) %>% 
+  arrange(desc(n)) %>% 
+  head(n = 10) %>% 
+  kable()
+```
+
+```{r, message = FALSE}
+sou_sentiment %>%
+    # Count by word and sentiment
+    count(word, sentiment) %>%
+    # Group by sentiment
+    group_by(sentiment) %>%
+    # Take the top 10 words for each sentiment
+    top_n(10) %>%
+    ungroup() %>%
+    mutate(word = reorder(word, n)) %>%
+    # Set up the plot with aes()
+    ggplot(aes(x = word, y = n, fill = sentiment)) +
+    geom_col(show.legend = FALSE) +
+    facet_wrap(~ sentiment, scales = "free") +
+    coord_flip()
+```
+
+```{r}
+
+sou_tidy <- sou %>% 
+  unnest_tokens(word, text)
+sentiment_by_time <- sou_tidy %>%
+    # Define a new column using floor_date()
+    mutate(time_period = floor_date(date, unit = "4 year")) %>%
+    # Group by date
+    group_by(time_period) %>%
+    mutate(total_words = n()) %>%
+    ungroup() %>%
+    # Implement sentiment analysis using the NRC lexicon
+    inner_join(get_sentiments("nrc"), by = "word")
+
+sentiment_by_time %>%
+    # Filter for positive and negative words
+    filter(sentiment %in% c("positive", "negative")) %>%
+    # Count by date, sentiment, and total_words
+    count(date, sentiment, total_words) %>%
+    ungroup() %>%
+    mutate(percent = n / total_words) %>%
+    # Set up the plot with aes()
+    ggplot(aes(x = date, y = percent, color = sentiment)) +
+    geom_line(size = 1.5) +
+    geom_smooth(method = "lm", se = FALSE, lty = 2) +
+    expand_limits(y = 0)
+```
+```{r score}
+sou_tidy %>% 
+  inner_join(get_sentiments("afinn"), by = "word") %>% 
+  group_by(president, date) %>% 
+  summarise(rating = mean(score)) %>% 
+  arrange(desc(rating))
 
 ```
 
