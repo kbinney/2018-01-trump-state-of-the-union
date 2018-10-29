@@ -1,0 +1,41 @@
+---
+title: "State of the Union Sentiment Analysis"
+author: "Katherine Binney"
+date: "10/29/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(tidytext)
+
+```
+
+```{r load_data, results="hide", warning=FALSE, message=FALSE}
+# load data
+sou <- read_csv("data/sou.csv")
+presidents <- read_csv("data/presidents.csv")
+sou <- sou %>%
+  left_join(presidents)
+```
+
+
+```{r tokenize}
+
+sou_words <- sou %>% 
+  unnest_tokens(word, text) %>% 
+  inner_join(get_sentiments("bing"), by = "word")
+
+sou_words %>% 
+  group_by(date) %>% 
+  mutate(total_words = n()) %>% 
+  ungroup() %>% 
+  year = year(date)
+
+```
+
